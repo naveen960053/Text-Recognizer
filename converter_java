@@ -1,0 +1,168 @@
+package com.example.textconverter;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Point;
+import android.graphics.Rect;
+import android.icu.text.CaseMap;
+import android.net.Uri;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.TextView;
+
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.ml.vision.FirebaseVision;
+import com.google.firebase.ml.vision.common.FirebaseVisionImage;
+import com.google.firebase.ml.vision.document.FirebaseVisionCloudDocumentRecognizerOptions;
+import com.google.firebase.ml.vision.document.FirebaseVisionDocumentText;
+import com.google.firebase.ml.vision.document.FirebaseVisionDocumentTextRecognizer;
+import com.google.firebase.ml.vision.text.FirebaseVisionCloudTextRecognizerOptions;
+import com.google.firebase.ml.vision.text.FirebaseVisionText;
+import com.google.firebase.ml.vision.text.FirebaseVisionTextRecognizer;
+import com.google.firebase.ml.vision.text.RecognizedLanguage;
+import com.itextpdf.text.BadElementException;
+import com.itextpdf.text.Document;
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.Image;
+import com.itextpdf.text.Paragraph;
+import com.itextpdf.text.pdf.PdfWriter;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static android.os.Environment.getExternalStorageDirectory;
+
+public class converter extends AppCompatActivity {
+    TextView text1;
+    String var;
+    Button btn;
+    Bitmap bitmap;
+    String str;
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_converter);
+        text1=(TextView)findViewById(R.id.textview1);
+        btn=(Button)findViewById(R.id.pdf);
+        Intent intn=getIntent();
+        var=intn.getStringExtra("picture");
+        BitmapFactory.Options bitmapoptions=new BitmapFactory.Options();
+        bitmap=BitmapFactory.decodeFile(var);
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try
+                {
+                    String path= getExternalStorageDirectory().getAbsolutePath()+"/PDF";
+                    File f=new File(path);
+                    if(!f.exists())
+                    {
+                        f.mkdirs();
+                    }
+                    File file=new File(f,"String.valueOf(System.currentTimeMillis().pdf).pdf");
+                    Document document=new Document();
+                    PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(file));
+                    document.addDocListener(writer);
+                    document.open();
+                    Paragraph para=new Paragraph("CHOOSEN IMAGE\n");
+                    para.setAlignment(1);
+                    document.add(para);
+                    ByteArrayOutputStream stream = new ByteArrayOutputStream();
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+                    Image image = Image.getInstance(stream.toByteArray());
+                    image.scaleAbsolute(330,330);
+                    image.setAlignment(1);
+                    document.add(image);
+                    Paragraph para2=new Paragraph("\nCONVERTED TEXT");
+                    para2.setAlignment(1);
+                    document.add(para2);
+                    Paragraph para1=new Paragraph("\n"+str);
+                    document.add(para1);
+                    document.close();
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setDataAndType( Uri.fromFile(file), "application/pdf" );
+                    startActivity(intent);
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (MalformedURLException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (BadElementException e) {
+                    e.printStackTrace();
+                } catch (DocumentException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+        FirebaseApp.initializeApp(this);
+        FirebaseVisionImage image = FirebaseVisionImage.fromBitmap(bitmap);
+        FirebaseVisionTextRecognizer detector = FirebaseVision.getInstance()
+                .getOnDeviceTextRecognizer();
+        Task<FirebaseVisionText> result =
+                detector.processImage(image)
+                        .addOnSuccessListener(new OnSuccessListener<FirebaseVisionText>() {
+                            @Override
+                            public void onSuccess(FirebaseVisionText firebaseVisionText) {
+                                // Task completed successfully
+                                String resultText = firebaseVisionText.getText();
+                                for (FirebaseVisionText.TextBlock block: firebaseVisionText.getTextBlocks()) {
+                                    String blockText = block.getText();
+                                    Log.e("Block: ",blockText);
+                                    Float blockConfidence = block.getConfidence();
+                                    List<RecognizedLanguage> blockLanguages = block.getRecognizedLanguages();
+                                    Point[] blockCornerPoints = block.getCornerPoints();
+                                    ArrayList<String> list= new ArrayList<String>();
+                                     Rect blockFrame = block.getBoundingBox();
+                                    for (FirebaseVisionText.Line line: block.getLines()) {
+                                        String lineText = line.getText();
+                                        Log.e("Line: ",lineText);
+                                        list.add(lineText);
+                                        Float lineConfidence = line.getConfidence();
+                                        List<RecognizedLanguage> lineLanguages = line.getRecognizedLanguages();
+                                        Point[] lineCornerPoints = line.getCornerPoints();
+                                        Rect lineFrame = line.getBoundingBox();
+                                        for (FirebaseVisionText.Element element: line.getElements()) {
+                                            String elementText = element.getText();
+                                            Log.e("Element: ",elementText);
+                                            Float elementConfidence = element.getConfidence();
+                                            List<RecognizedLanguage> elementLanguages = element.getRecognizedLanguages();
+                                            Point[] elementCornerPoints = element.getCornerPoints();
+                                            Rect elementFrame = element.getBoundingBox();
+                                            text1.setText(elementLanguages.toString());
+                                        }
+                                    }
+                                }
+                                text1.setText(resultText);
+                                str=text1.getText().toString();
+                                btn.setVisibility(View.VISIBLE);
+
+                            }
+                        })
+                        .addOnFailureListener(
+                                new OnFailureListener() {
+                                    @Override
+                                    public void onFailure(@NonNull Exception e) {
+                                        // Task failed with an exception
+                                        // ...
+                                    }
+                                });
+    }
+
+}
